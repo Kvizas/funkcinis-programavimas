@@ -9,15 +9,13 @@ module Lib2
     DroneModel (..),
     Component (..),
     Check (..),
-    parseDroneModel,
-    parseComponents,
-    parseItemList,
-    parseCheck,
-    parseQuery,
+    Parser
   )
 where
 
-import qualified Data.List as L
+import qualified Data.Char as C
+
+type Parser a = String -> Either String (a, String)
 
 data Query = StartProduction DroneModel [Component] | CheckInventory [Component] | PerformQualityCheck Check
   deriving (Show, Eq)
@@ -37,59 +35,139 @@ data State = State
   }
   deriving (Show, Eq)
 
--- <drone_model> ::= <copter> | <plane_drone>
-parseDroneModel :: String -> Either String DroneModel
-parseDroneModel "Hexacopter" = Right Hexacopter
-parseDroneModel "Quadcopter" = Right Quadcopter
-parseDroneModel "VTOLDrone" = Right VTOLDrone
-parseDroneModel "FixedWingDrone" = Right FixedWingDrone
-parseDroneModel _ = Left "Invalid drone model"
+parseChar :: Char -> Parser Char
+parseChar c [] = Left $ "Expected " ++ [c] ++ ", got empty input"
+parseChar c (x:xs)
+  | c == x = Right (c, xs)
+  | otherwise = Left $ "Expected " ++ [c] ++ ", got " ++ [x]
 
--- <components> ::= <component> | <component> <components>
-parseComponents :: String -> Either String [Component]
-parseComponents s = mapM parseComponent (words s)
+parseString :: String -> Parser String
+parseString [] input = Right ([], input)
+parseString (x:xs) input = case parseChar x input of
+  Right (_, rest) -> case parseString xs rest of
+    Right (str, remaining) -> Right (x:str, remaining)
+    Left e -> Left e
+  Left e -> Left e
 
--- <component> ::= "Motor" | "Battery" | "Frame" | "Propeller" | "Controller"
-parseComponent :: String -> Either String Component
-parseComponent "Motor" = Right Motor
-parseComponent "Battery" = Right Battery
-parseComponent "Frame" = Right Frame
-parseComponent "Propeller" = Right Propeller
-parseComponent "Controller" = Right Controller
-parseComponent _ = Left "Invalid component"
+parseWhitespace :: Parser String
+parseWhitespace [] = Right ("", [])
+parseWhitespace (x:xs)
+  | C.isSpace x = case parseWhitespace xs of
+      Right (spaces, rest) -> Right (x:spaces, rest)
+      Left e -> Left e
+  | otherwise = Right ("", x:xs)
 
--- <item_list> ::= <component> | <component> <item_list>
-parseItemList :: String -> Either String [Component]
-parseItemList s = parseComponents s
+orElse :: Parser a -> Parser a -> Parser a
+orElse p1 p2 input = case p1 input of
+  Right result -> Right result
+  Left _ -> p2 input
 
--- <check> ::= "Battery Test" | "Flight Test" | "Frame Inspection"
-parseCheck :: String -> Either String Check
-parseCheck "Battery Test" = Right BatteryTest
-parseCheck "Flight Test" = Right FlightTest
-parseCheck "Frame Inspection" = Right FrameInspection
-parseCheck _ = Left "Invalid check"
+andThen :: Parser a -> Parser b -> Parser (a, b)
+andThen p1 p2 input = case p1 input of
+  Right (v1, rest1) -> case p2 rest1 of
+    Right (v2, rest2) -> Right ((v1, v2), rest2)
+    Left e -> Left e
+  Left e -> Left e
 
--- User Input
+token :: String -> Parser String
+token s = \input -> case parseWhitespace input of
+  Right (_, rest1) -> case parseString s rest1 of
+    Right (result, rest2) -> case parseWhitespace rest2 of
+      Right (_, rest3) -> Right (result, rest3)
+      Left e -> Left e
+    Left e -> Left e
+  Left e -> Left e
+
+parseDroneModel :: Parser DroneModel
+parseDroneModel = \input -> case parseWhitespace input of
+  Right (_, rest) -> 
+    orElse
+      (\i -> case parseString "Hexacopter" i of
+        Right (_, r) -> Right (Hexacopter, r)
+        Left e -> Left e)
+      (orElse
+        (\i -> case parseString "Quadcopter" i of
+          Right (_, r) -> Right (Quadcopter, r)
+          Left e -> Left e)
+        (orElse
+          (\i -> case parseString "VTOLDrone" i of
+            Right (_, r) -> Right (VTOLDrone, r)
+            Left e -> Left e)
+          (\i -> case parseString "FixedWingDrone" i of
+            Right (_, r) -> Right (FixedWingDrone, r)
+            Left e -> Left e)))
+      rest
+  Left e -> Left e
+
+parseComponent :: Parser Component
+parseComponent = \input -> case parseWhitespace input of
+  Right (_, rest) ->
+    orElse
+      (\i -> case parseString "Motor" i of
+        Right (_, r) -> Right (Motor, r)
+        Left e -> Left e)
+      (orElse
+        (\i -> case parseString "Battery" i of
+          Right (_, r) -> Right (Battery, r)
+          Left e -> Left e)
+        (orElse
+          (\i -> case parseString "Frame" i of
+            Right (_, r) -> Right (Frame, r)
+            Left e -> Left e)
+          (orElse
+            (\i -> case parseString "Propeller" i of
+              Right (_, r) -> Right (Propeller, r)
+              Left e -> Left e)
+            (\i -> case parseString "Controller" i of
+              Right (_, r) -> Right (Controller, r)
+              Left e -> Left e))))
+      rest
+  Left e -> Left e
+
+parseComponents :: Parser [Component]
+parseComponents input = case parseComponent input of
+  Right (comp, rest) -> case parseComponents rest of
+    Right (comps, final) -> Right (comp:comps, final)
+    Left _ -> Right ([comp], rest)
+  Left _ -> Right ([], input)
+
+parseCheck :: Parser Check
+parseCheck = \input -> case parseWhitespace input of
+  Right (_, rest) ->
+    orElse
+      (\i -> case parseString "Battery Test" i of
+        Right (_, r) -> Right (BatteryTest, r)
+        Left e -> Left e)
+      (orElse
+        (\i -> case parseString "Flight Test" i of
+          Right (_, r) -> Right (FlightTest, r)
+          Left e -> Left e)
+        (\i -> case parseString "Frame Inspection" i of
+          Right (_, r) -> Right (FrameInspection, r)
+          Left e -> Left e))
+      rest
+  Left e -> Left e
+
 parseQuery :: String -> Either String Query
-parseQuery s = case words s of
-  "Start" : "Production" : model : components -> case parseDroneModel model of
-    Right model' -> case parseComponents (unwords components) of
-      Right components' -> Right $ StartProduction model' components'
+parseQuery input = case token "Start Production" input of
+  Right (_, rest1) -> case parseDroneModel rest1 of
+    Right (model, rest2) -> case parseComponents rest2 of
+      Right (comps, _) -> Right $ StartProduction model comps
       Left e -> Left e
     Left e -> Left e
-  "Check" : "Inventory" : items -> case parseItemList (unwords items) of
-    Right items' -> Right $ CheckInventory items'
-    Left e -> Left e
-  "Perform" : "Quality" : "Check" : rest -> 
-    case parseCheck (unwords rest) of
-      Right check' -> Right $ PerformQualityCheck check'
+  Left _ -> case token "Check Inventory" input of
+    Right (_, rest1) -> case parseComponents rest1 of
+      Right (comps, _) -> Right $ CheckInventory comps
       Left e -> Left e
-  _ -> Left "Invalid query"
+    Left _ -> case token "Perform Quality Check" input of
+      Right (_, rest1) -> case parseCheck rest1 of
+        Right (check, _) -> Right $ PerformQualityCheck check
+        Left e -> Left e
+      Left _ -> Left "Invalid query"
 
 emptyState :: State
 emptyState = State {inventory = [], productionLog = []}
 
--- | Updates a state according to a query.
 stateTransition :: State -> Query -> Either String (Maybe String, State)
 stateTransition st query = case query of
   StartProduction model components -> 
