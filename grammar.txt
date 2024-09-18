@@ -1,0 +1,23 @@
+<drone_factory> ::= <production_line> | <inventory_management> | <quality_control>
+
+<production_line> ::= "Start Production" <drone_model> <components> "End Production"
+
+<copter> ::= "Hexacopter" | "Quadcopter"
+
+<plane_drone> ::= "VTOL Drone" | "Fixed-Wing Drone"
+
+<drone_model> ::= <copter> | <plane_drone>
+
+<inventory_management> ::= "Check Inventory" <item_list>
+
+<item_list> ::= <component> | <component> <item_list>
+
+<components> ::= <component> | <component> <components>
+
+<component> ::= "Motor" | "Battery" | "Frame" | "Propeller" | "Controller"
+
+<quality_control> ::= "Perform Quality Check" <check_list>
+
+<check_list> ::= <check> | <check> <check_list>
+
+<check> ::= "Battery Test" | "Flight Test" | "Frame Inspection"
