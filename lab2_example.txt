@@ -1,0 +1,20 @@
+ghci> parseQuery "Start Production Hexacopter Motor Battery"
+Right (StartProduction Hexacopter [Motor, Battery])
+ghci> parseQuery "Check Inventory Motor Battery"
+Right (CheckInventory [Motor, Battery])
+ghci> parseQuery "Perform Quality Check Battery Test"
+Right (PerformQualityCheck BatteryTest)
+ghci> parseQuery "Perform Quality Check Flight Test"
+Right (PerformQualityCheck FlightTest)
+ghci> parseQuery "Start Production Quadcopter Frame Propeller"
+Right (StartProduction Quadcopter [Frame, Propeller])
+ghci> parseQuery "Check Inventory Frame"
+Right (CheckInventory [Frame])
+ghci> parseQuery "Perform Quality Check Frame Inspection"
+Right (PerformQualityCheck FrameInspection)
+ghci> parseQuery "Start Production FixedWingDrone Controller"
+Right (StartProduction FixedWingDrone [Controller])
+ghci> parseQuery "Check Inventory"
+Right (CheckInventory [])
+ghci> parseQuery "Perform Quality Check"
+Left "Invalid query"
