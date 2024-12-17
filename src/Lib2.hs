@@ -20,7 +20,6 @@ data State = State
   }
   deriving (Show, Eq)
 
--- Add required components for each drone type
 requiredComponents :: DroneModel -> [Component]
 requiredComponents Quadcopter = [Motor, Motor, Motor, Motor, Frame, Battery, Controller, Propeller, Propeller, Propeller, Propeller]
 requiredComponents Hexacopter = [Motor, Motor, Motor, Motor, Motor, Motor, Frame, Battery, Controller, Propeller, Propeller, Propeller, Propeller, Propeller, Propeller]
@@ -82,7 +81,6 @@ stateTransition st query = case query of
 canProduce :: [Component] -> State -> Bool
 canProduce components st = all (`elem` inventory st) components
 
--- Helper function to find missing required components
 findMissingComponents :: [Component] -> [Component] -> [Component]
 findMissingComponents required provided =
   let countMap = foldr (\c m -> increment c m) [] required
@@ -98,7 +96,6 @@ findMissingComponents required provided =
     findCount c ((x,n):xs) | c == x = n
                           | otherwise = findCount c xs
 
--- Update removeComponents to only remove the exact components needed
 removeComponents :: [Component] -> State -> [Component]
 removeComponents toRemove st =
   let countMap = foldr (\c m -> increment c m) [] toRemove

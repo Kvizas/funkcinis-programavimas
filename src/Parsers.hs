@@ -52,9 +52,9 @@ parse :: Parser a -> String -> (Either String a, String)
 parse parser = runState (runExceptT parser)
 
 data Query 
-  = StartProduction DroneModel [Component]  -- Similar to 'Create'
-  | CheckInventory [Component]              -- Similar to 'ShowIngredients'
-  | PerformQC [Check]                      -- New query type for quality control
+  = StartProduction DroneModel [Component] 
+  | CheckInventory [Component]            
+  | PerformQC [Check]             
   | ListModelsInProduction
   | AddComponent Component
   | Debug 
@@ -184,7 +184,6 @@ parseInt = do
       lift (put rest)
       return (read digits)
 
--- Data types for the drone domain
 data DroneCommand
   = ProductionLine DroneModel [Component]
   | InventoryManagement [Component]
@@ -212,7 +211,6 @@ data Check
   | FrameInspection
   deriving (Show, Eq)
 
--- Main parsers for drone commands
 parseDroneCommand :: Parser DroneCommand
 parseDroneCommand = parseProductionLine <|> parseInventoryManagement <|> parseQualityControl
 
