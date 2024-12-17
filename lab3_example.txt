@@ -1,0 +1,57 @@
+>>> :paste
+-- Entering multi-line mode. Press <Ctrl-D> to finish.
+| BEGIN
+| add_component(Frame);
+add_component(Propeller);
+add_component(Propeller)| add_component(Frame);
+| add_component(Propeller);
+| add_component(Propeller);
+| add_component(Propeller);
+| add_component(Propeller);
+| add_component(Controller);
+| add_component(Motor);
+| add_component(Motor);
+| add_component(Motor);
+| add_component(Motor);
+| add_component(Battery);
+| produce(Quadcopter Frame, Propeller, Propeller, Propeller, Propeller, Controller, Motor, Motor, Motor, Motor, Battery);
+| END
+| 
+
+Added Frame
+Added Frame
+Added Propeller
+Added Propeller
+Added Propeller
+Added Propeller
+Added Controller
+Added Motor
+Added Motor
+Added Motor
+Added Motor
+Added Battery
+Started production of Quadcopter
+
+>>> debug()
+State {inventory = [Frame], productionLog = [(Quadcopter,[Frame,Propeller,Propeller,Propeller,Propeller,Controller,Motor,Motor,Motor,Motor,Battery])]}
+
+>>> save
+State saved successfully
+
+
+Welcome! Press [TAB] for auto completion, type ':paste' for multiline input
+
+>>> load
+Added Frame
+Added Frame
+Added Propeller
+Added Propeller
+Added Propeller
+Added Propeller
+Added Controller
+Added Motor
+Added Motor
+Added Motor
+Added Motor
+Added Battery
+Started production of Quadcopter

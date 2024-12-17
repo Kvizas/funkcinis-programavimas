@@ -8,26 +8,11 @@ module Lib2
     stateTransition,
     DroneModel (..),
     Component (..),
-    Check (..),
-    Parser
+    Check (..)
   )
 where
 
-import qualified Data.Char as C
-
-type Parser a = String -> Either String (a, String)
-
-data Query = StartProduction DroneModel [Component] | CheckInventory [Component] | PerformQualityCheck Check
-  deriving (Show, Eq)
-
-data DroneModel = Hexacopter | Quadcopter | VTOLDrone | FixedWingDrone
-  deriving (Show, Eq)
-
-data Component = Motor | Battery | Frame | Propeller | Controller
-  deriving (Show, Eq)
-
-data Check = BatteryTest | FlightTest | FrameInspection
-  deriving (Show, Eq)
+import Parsers
 
 data State = State
   { inventory :: [Component],
@@ -35,144 +20,112 @@ data State = State
   }
   deriving (Show, Eq)
 
-parseChar :: Char -> Parser Char
-parseChar c [] = Left $ "Expected " ++ [c] ++ ", got empty input"
-parseChar c (x:xs)
-  | c == x = Right (c, xs)
-  | otherwise = Left $ "Expected " ++ [c] ++ ", got " ++ [x]
-
-parseString :: String -> Parser String
-parseString [] input = Right ([], input)
-parseString (x:xs) input = case parseChar x input of
-  Right (_, rest) -> case parseString xs rest of
-    Right (str, remaining) -> Right (x:str, remaining)
-    Left e -> Left e
-  Left e -> Left e
-
-parseWhitespace :: Parser String
-parseWhitespace [] = Right ("", [])
-parseWhitespace (x:xs)
-  | C.isSpace x = case parseWhitespace xs of
-      Right (spaces, rest) -> Right (x:spaces, rest)
-      Left e -> Left e
-  | otherwise = Right ("", x:xs)
-
-orElse :: Parser a -> Parser a -> Parser a
-orElse p1 p2 input = case p1 input of
-  Right result -> Right result
-  Left _ -> p2 input
-
-andThen :: Parser a -> Parser b -> Parser (a, b)
-andThen p1 p2 input = case p1 input of
-  Right (v1, rest1) -> case p2 rest1 of
-    Right (v2, rest2) -> Right ((v1, v2), rest2)
-    Left e -> Left e
-  Left e -> Left e
-
-token :: String -> Parser String
-token s = \input -> case parseWhitespace input of
-  Right (_, rest1) -> case parseString s rest1 of
-    Right (result, rest2) -> case parseWhitespace rest2 of
-      Right (_, rest3) -> Right (result, rest3)
-      Left e -> Left e
-    Left e -> Left e
-  Left e -> Left e
-
-parseDroneModel :: Parser DroneModel
-parseDroneModel = \input -> case parseWhitespace input of
-  Right (_, rest) -> 
-    orElse
-      (\i -> case parseString "Hexacopter" i of
-        Right (_, r) -> Right (Hexacopter, r)
-        Left e -> Left e)
-      (orElse
-        (\i -> case parseString "Quadcopter" i of
-          Right (_, r) -> Right (Quadcopter, r)
-          Left e -> Left e)
-        (orElse
-          (\i -> case parseString "VTOLDrone" i of
-            Right (_, r) -> Right (VTOLDrone, r)
-            Left e -> Left e)
-          (\i -> case parseString "FixedWingDrone" i of
-            Right (_, r) -> Right (FixedWingDrone, r)
-            Left e -> Left e)))
-      rest
-  Left e -> Left e
-
-parseComponent :: Parser Component
-parseComponent = \input -> case parseWhitespace input of
-  Right (_, rest) ->
-    orElse
-      (\i -> case parseString "Motor" i of
-        Right (_, r) -> Right (Motor, r)
-        Left e -> Left e)
-      (orElse
-        (\i -> case parseString "Battery" i of
-          Right (_, r) -> Right (Battery, r)
-          Left e -> Left e)
-        (orElse
-          (\i -> case parseString "Frame" i of
-            Right (_, r) -> Right (Frame, r)
-            Left e -> Left e)
-          (orElse
-            (\i -> case parseString "Propeller" i of
-              Right (_, r) -> Right (Propeller, r)
-              Left e -> Left e)
-            (\i -> case parseString "Controller" i of
-              Right (_, r) -> Right (Controller, r)
-              Left e -> Left e))))
-      rest
-  Left e -> Left e
-
-parseComponents :: Parser [Component]
-parseComponents input = case parseComponent input of
-  Right (comp, rest) -> case parseComponents rest of
-    Right (comps, final) -> Right (comp:comps, final)
-    Left _ -> Right ([comp], rest)
-  Left _ -> Right ([], input)
-
-parseCheck :: Parser Check
-parseCheck = \input -> case parseWhitespace input of
-  Right (_, rest) ->
-    orElse
-      (\i -> case parseString "Battery Test" i of
-        Right (_, r) -> Right (BatteryTest, r)
-        Left e -> Left e)
-      (orElse
-        (\i -> case parseString "Flight Test" i of
-          Right (_, r) -> Right (FlightTest, r)
-          Left e -> Left e)
-        (\i -> case parseString "Frame Inspection" i of
-          Right (_, r) -> Right (FrameInspection, r)
-          Left e -> Left e))
-      rest
-  Left e -> Left e
+-- Add required components for each drone type
+requiredComponents :: DroneModel -> [Component]
+requiredComponents Quadcopter = [Motor, Motor, Motor, Motor, Frame, Battery, Controller, Propeller, Propeller, Propeller, Propeller]
+requiredComponents Hexacopter = [Motor, Motor, Motor, Motor, Motor, Motor, Frame, Battery, Controller, Propeller, Propeller, Propeller, Propeller, Propeller, Propeller]
+requiredComponents VTOLDrone = [Motor, Motor, Motor, Motor, Frame, Battery, Controller, Propeller, Propeller, Propeller, Propeller]
+requiredComponents FixedWingDrone = [Motor, Motor, Frame, Battery, Controller, Propeller, Propeller]
 
 parseQuery :: String -> Either String Query
-parseQuery input = case token "Start Production" input of
-  Right (_, rest1) -> case parseDroneModel rest1 of
-    Right (model, rest2) -> case parseComponents rest2 of
-      Right (comps, _) -> Right $ StartProduction model comps
-      Left e -> Left e
-    Left e -> Left e
-  Left _ -> case token "Check Inventory" input of
-    Right (_, rest1) -> case parseComponents rest1 of
-      Right (comps, _) -> Right $ CheckInventory comps
-      Left e -> Left e
-    Left _ -> case token "Perform Quality Check" input of
-      Right (_, rest1) -> case parseCheck rest1 of
-        Right (check, _) -> Right $ PerformQualityCheck check
-        Left e -> Left e
-      Left _ -> Left "Invalid query"
+parseQuery s =
+  case parse parseTaskList s of
+    (Left e, _) -> Left e
+    (Right qs, r) -> if null r
+      then case qs of
+        [q] -> Right q
+        _ -> Right (Sequence qs)
+      else Left ("Unrecognized characters: " ++ r)
 
 emptyState :: State
 emptyState = State {inventory = [], productionLog = []}
 
 stateTransition :: State -> Query -> Either String (Maybe String, State)
 stateTransition st query = case query of
-  StartProduction model components -> 
-    Right (Just $ "Started production of " ++ show model, st {productionLog = (model, components) : productionLog st})
-  CheckInventory items -> 
-    Right (Just $ "Current inventory: " ++ show (inventory st), st)
-  PerformQualityCheck check -> 
-    Right (Just $ "Performed quality check: " ++ show check, st)
+  ListModelsInProduction -> 
+    Right (Just $ show $ map fst $ productionLog st, st)
+  
+  CheckInventory components -> 
+    Right (Just $ show $ inventory st, st)
+  
+  StartProduction model components ->
+    let required = requiredComponents model
+        missing = findMissingComponents required components
+    in if not (null missing)
+         then Left $ "Missing required components for " ++ show model ++ ": " ++ show missing
+         else if canProduce components st
+           then Right (Just $ "Started production of " ++ show model, 
+                      st { productionLog = (model, components) : productionLog st,
+                           inventory = removeComponents components st })
+           else Left "Insufficient components in inventory"
+  
+  AddComponent component ->
+    Right (Just $ "Added " ++ show component, 
+           st { inventory = component : inventory st })
+  
+  PerformQC checks ->
+    Right (Just $ "Performing checks: " ++ show checks, st)
+  
+  Debug -> 
+    Right (Just $ show st, st)
+  
+  Sequence queries ->
+    foldl processQuery (Right (Just "", st)) queries
+    where
+      processQuery (Left err) _ = Left err
+      processQuery (Right (msg, state)) q = 
+        case stateTransition state q of
+          Left err -> Left err
+          Right (Just newMsg, newState) -> Right (combineMessages msg (Just newMsg), newState)
+          Right (Nothing, newState) -> Right (msg, newState)
+
+canProduce :: [Component] -> State -> Bool
+canProduce components st = all (`elem` inventory st) components
+
+-- Helper function to find missing required components
+findMissingComponents :: [Component] -> [Component] -> [Component]
+findMissingComponents required provided =
+  let countMap = foldr (\c m -> increment c m) [] required
+      providedMap = foldr (\c m -> increment c m) [] provided
+  in concatMap (\(comp, count) -> 
+       replicate (count - findCount comp providedMap) comp) countMap
+  where
+    increment c [] = [(c, 1)]
+    increment c ((x,n):xs) | c == x = (x,n+1):xs
+                          | otherwise = (x,n):increment c xs
+    
+    findCount _ [] = 0
+    findCount c ((x,n):xs) | c == x = n
+                          | otherwise = findCount c xs
+
+-- Update removeComponents to only remove the exact components needed
+removeComponents :: [Component] -> State -> [Component]
+removeComponents toRemove st =
+  let countMap = foldr (\c m -> increment c m) [] toRemove
+  in removeWithCounts countMap (inventory st)
+  where
+    increment c [] = [(c, 1)]
+    increment c ((x,n):xs) | c == x = (x,n+1):xs
+                          | otherwise = (x,n):increment c xs
+    
+    removeWithCounts _ [] = []
+    removeWithCounts counts (x:xs)
+      | shouldRemove x counts = removeWithCounts (decrementCount x counts) xs
+      | otherwise = x : removeWithCounts counts xs
+    
+    shouldRemove c counts = findCount c counts > 0
+    
+    findCount _ [] = 0
+    findCount c ((x,n):xs) | c == x = n
+                          | otherwise = findCount c xs
+    
+    decrementCount c [] = []
+    decrementCount c ((x,n):xs)
+      | c == x = if n > 1 then (x,n-1):xs else xs
+      | otherwise = (x,n):decrementCount c xs
+
+combineMessages :: Maybe String -> Maybe String -> Maybe String
+combineMessages Nothing Nothing = Nothing
+combineMessages (Just m1) Nothing = Just m1
+combineMessages Nothing (Just m2) = Just m2
+combineMessages (Just m1) (Just m2) = Just (m1 ++ "\n" ++ m2)
